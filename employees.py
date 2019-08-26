@@ -1,17 +1,18 @@
-from contacts import AddressBook
-from hr import (SalaryPolicy, CommissionPolicy, HourlyPolicy, PayrollSystem)
+from contacts import get_employee_address
+from hr import (SalaryPolicy, CommissionPolicy, HourlyPolicy, get_policy)
 
-from productivity import (ManagerRole, SecretaryRole, SalesRole, FactoryRole, ProductivitySystem)
+from productivity import (ManagerRole, SecretaryRole, SalesRole, FactoryRole, get_role)
 from representations import AsDictionaryMixin
 
 
 class Employee(AsDictionaryMixin):
-    def __init__(self, id, name, address, role, payroll):
+    def __init__(self, id):
         self.id = id
-        self.name = name
-        self.address = address
-        self._role = role
-        self._payroll = payroll
+        info = employee_database.get_employee_info(self.id)
+        self.name = info.get('name')
+        self.address = get_employee_address(self.id)
+        self._role = get_role(info.get('role'))
+        self._payroll = get_policy(self.id)
 
     def work(self, hours):
         duties = self._role.perform_duties(hours)
@@ -22,6 +23,10 @@ class Employee(AsDictionaryMixin):
 
     def calculate_payroll(self):
         return self._payroll.calculate_payroll()
+
+    def apply_payroll_policy(self, new_policy):
+        new_policy.apply_to_policy(self._payroll)
+        self._payroll = new_policy
 
 
 class SalaryEmployee(Employee):
@@ -95,45 +100,46 @@ class TemporarySecretary(Employee, SecretaryRole, HourlyPolicy):
         super().__init__(id, name)
 
 
-class EmployeeDatabase:
-    @property
-    def employees(self):
-        return [self._create_employee(**data) for data in self._employees]
-
+class _EmployeeDatabase:
     def __init__(self):
-        self._employees = [
-            {
-                'id': 1,
+        self._employees = {
+            1: {
                 'name': 'Mary Poppins',
                 'role': 'manager'
             },
-            {
-                'id': 2,
+            2: {
                 'name': 'John Smith',
                 'role': 'secretary'
             },
-            {
-                'id': 3,
+            3: {
                 'name': 'Kevin Bacon',
                 'role': 'sales'
             },
-            {
-                'id': 4,
+            4: {
                 'name': 'Jane Doe',
                 'role': 'factory'
             },
-            {
-                'id': 5,
+            5: {
                 'name': 'Robin Williams',
                 'role': 'secretary'
-            },
-        ]
-        self.productivity = ProductivitySystem()
-        self.payroll = PayrollSystem()
-        self.employee_addresses = AddressBook()
+            }
+        }
+
+    @property
+    def employees(self):
+        return [Employee(id_) for id_ in sorted(self._employees)]
+
+    def get_employee_info(self, employee_id):
+        info = self._employees.get(employee_id)
+        if not info:
+            raise ValueError(employee_id)
+        return info
 
     def _create_employee(self, id, name, role):
         address = self.employee_addresses.get_employee_address(id)
         employee_role = self.productivity.get_role(role)
         payroll_policy = self.payroll.get_policy(id)
         return Employee(id, name, address, employee_role, payroll_policy)
+
+
+employee_database = _EmployeeDatabase()
